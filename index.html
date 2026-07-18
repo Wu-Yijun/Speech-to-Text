@@ -511,6 +511,7 @@
 
       // 6. Keyboard Bindings
       document.addEventListener("keydown", (e) => {
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
         if (e.target.tagName === "INPUT") return;
         if (e.repeat) return;
 
