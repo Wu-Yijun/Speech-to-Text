@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Input (Chrome Speech Recognition)</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href='data:image/svg+xml,<svg t="1784343643395" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="5515" width="256" height="256"><path d="M512 34.133333c-123.153067 0-223.761067 100.625067-223.761067 223.761067v212.1728c0 123.153067 100.608 223.761067 223.744 223.761067l5.410134-0.068267c121.156267-3.140267 218.368-102.724267 218.368-223.6928V257.8944c0-123.136-100.625067-223.744-223.761067-223.744z m0 68.266667c85.435733 0 155.477333 70.058667 155.477333 155.4944v212.1728c0 83.933867-67.669333 153.258667-151.415466 155.4432l-4.5056 0.0512c-84.992 0-155.050667-70.0416-155.050667-155.477333V257.877333c0-85.435733 70.0416-155.477333 155.477333-155.477333z" fill="#666666" p-id="5516"></path><path d="M853.333333 455.5776a34.133333 34.133333 0 0 1 34.133334 34.133333c0 196.727467-169.301333 356.727467-375.466667 356.727467S136.533333 686.4384 136.533333 489.710933a34.133333 34.133333 0 1 1 68.266667 0c0 158.139733 137.898667 288.4608 307.2 288.4608s307.2-130.321067 307.2-288.4608a34.133333 34.133333 0 0 1 34.133333-34.133333z" fill="#666666" p-id="5517"></path><path d="M512 778.1888a34.133333 34.133333 0 0 1 34.030933 31.573333l0.1024 2.56V955.733333a34.133333 34.133333 0 0 1-68.181333 2.542934l-0.085333-2.56v-143.394134a34.133333 34.133333 0 0 1 34.133333-34.133333z" fill="#666666" p-id="5518"></path><path d="M477.866667 290.133333v204.8h-68.266667V290.133333a34.133333 34.133333 0 1 1 68.266667 0z" fill="#00B386" p-id="5519"></path></svg>'
+    >
+    <style>
+      :root {
+        --bg: #f9fafb;
+        --text: #1f2937;
+        --interim-text: #9ca3af;
+        --primary: #3b82f6;
+        --danger: #ef4444;
+        --success: #10b981;
+      }
+
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        background-color: var(--bg);
+        color: var(--text);
+        max-width: 900px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        display: flex;
+        flex-direction: column;
+        height: 90vh;
+        overflow: hidden;
+      }
+
+      .header-panel {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .controls-grid {
+        display: grid;
+        grid-template-columns: repeat(4, auto);
+        gap: 0.5rem 1.5rem;
+        font-size: 0.85rem;
+        color: #6b7280;
+        background: #f3f4f6;
+        padding: 1rem;
+        border-radius: 8px;
+      }
+
+      .key-badge {
+        background: white;
+        border: 1px solid #d1d5db;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-weight: bold;
+        color: var(--text);
+      }
+
+      #status-bar {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        font-weight: 600;
+      }
+
+      .status-indicator {
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        background: #e5e7eb;
+        font-size: 0.875rem;
+        transition: all 0.2s;
+      }
+
+      .status-indicator.active {
+        background: var(--danger);
+        color: white;
+        animation: pulse 2s infinite;
+      }
+
+      .lang-indicator {
+        color: var(--primary);
+      }
+
+      #action-toast {
+        color: var(--success);
+        font-size: 0.875rem;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+
+        50% {
+          opacity: 0.8;
+        }
+
+        100% {
+          opacity: 1;
+        }
+      }
+
+      #text-display {
+        flex-grow: 1;
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        font-size: 1.125rem;
+        line-height: 1.6;
+        overflow-y: auto;
+        white-space: pre-wrap;
+      }
+
+      .interim {
+        color: var(--interim-text);
+        font-style: italic;
+      }
+
+      /* Native Popover Styles */
+      [popover] {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 1.5rem;
+        background: white;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        margin: auto;
+        width: 320px;
+      }
+
+      [popover]::backdrop {
+        background: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(2px);
+      }
+
+      .popover-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .popover-header h3 {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      .ext-link {
+        font-size: 0.75rem;
+        color: var(--primary);
+        text-decoration: none;
+      }
+
+      .ext-link:hover {
+        text-decoration: underline;
+      }
+
+      .popover-form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .popover-form input {
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 1rem;
+      }
+
+      button {
+        padding: 0.5rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        color: white;
+      }
+
+      .btn-primary {
+        background: var(--primary);
+        width: 100%;
+      }
+
+      .btn-danger {
+        background: var(--danger);
+        flex: 1;
+      }
+
+      .btn-update {
+        background: var(--success);
+        flex: 1;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+      }
+
+      /* Used to toggle button visibility via JS */
+      #actions-existing {
+        display: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="controls-grid">
+      <div><span class="key-badge">A</span> Toggle listen</div>
+      <div><span class="key-badge">Space</span> Hold to listen</div>
+      <div><span class="key-badge">Shift</span> Switch language</div>
+      <div><span class="key-badge">Tab</span> Manage langs</div>
+      <div><span class="key-badge">C</span> Copy</div>
+      <div><span class="key-badge">D</span> Clear</div>
+      <div><span class="key-badge">X</span> Copy & Clear</div>
+      <div><span class="key-badge">Z</span> Undo clear</div>
+    </div>
+
+    <div class="header-panel">
+      <div id="status-bar">
+        <div id="mic-status" class="status-indicator">Idle</div>
+        <div id="lang-status" class="lang-indicator">Loading...</div>
+      </div>
+      <div id="action-toast">Action completed</div>
+    </div>
+
+    <div id="text-display"></div>
+
+    <!-- Popover -->
+    <div id="lang-popover" popover>
+      <div class="popover-header">
+        <h3>Manage Languages</h3>
+        <!-- Standard IETF BCP-47 reference list via Wikipedia/Tech doc -->
+        <a
+          href="https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes"
+          target="_blank"
+          class="ext-link"
+        >Code lookup ↗</a>
+      </div>
+      <div class="popover-form">
+        <input
+          type="text"
+          id="lang-code"
+          list="saved-langs-list"
+          placeholder="Code (e.g., it-IT)"
+          autocomplete="off"
+        />
+        <input
+          type="text"
+          id="lang-name"
+          placeholder="Name (e.g., Italian)"
+          autocomplete="off"
+        />
+
+        <!-- Actions for NEW language -->
+        <div id="actions-new" class="button-group">
+          <button id="add-lang-btn" class="btn-primary">Add Language</button>
+        </div>
+
+        <!-- Actions for EXISTING language -->
+        <div id="actions-existing" class="button-group">
+          <button id="rename-lang-btn" class="btn-update">Rename</button>
+          <button id="delete-lang-btn" class="btn-danger">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dynamic datalist linked to the input -->
+    <datalist id="saved-langs-list"></datalist>
+
+    <script>
+      // 1. Storage & Initialization
+      const defaultLanguages = [
+        { code: "en-US", name: "English" },
+        { code: "es-ES", name: "Spanish" },
+        { code: "fr-FR", name: "French" },
+        { code: "zh-CN", name: "Mandarin" },
+        { code: "de-DE", name: "German" },
+      ];
+
+      let languages =
+        JSON.parse(localStorage.getItem("voiceAppLangs")) ||
+        defaultLanguages;
+      let currentLangIdx =
+        parseInt(localStorage.getItem("voiceAppLangIdx"), 10) || 0;
+
+      if (currentLangIdx >= languages.length || currentLangIdx < 0) {
+        currentLangIdx = 0;
+      }
+
+      // API Setup
+      const SpeechRecognition = window.SpeechRecognition ||
+        window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = languages[currentLangIdx].code;
+
+      // DOM Elements
+      const textDisplay = document.getElementById("text-display");
+      const micStatus = document.getElementById("mic-status");
+      const langStatus = document.getElementById("lang-status");
+      const toast = document.getElementById("action-toast");
+      const popover = document.getElementById("lang-popover");
+
+      const codeInput = document.getElementById("lang-code");
+      const nameInput = document.getElementById("lang-name");
+      const actionsNew = document.getElementById("actions-new");
+      const actionsExisting = document.getElementById(
+        "actions-existing",
+      );
+      const datalist = document.getElementById("saved-langs-list");
+
+      let isRecording = false;
+      let finalTranscript = "";
+      let undoBuffer = "";
+      let isSpaceListening = false;
+      let toastTimeout;
+
+      // 2. UI Updates & Data Syncing
+      function updateDatalist() {
+        datalist.innerHTML = languages.map((l) =>
+          `<option value="${l.code}">${l.name}</option>`
+        ).join("");
+      }
+
+      function saveLanguagesToStorage() {
+        localStorage.setItem(
+          "voiceAppLangs",
+          JSON.stringify(languages),
+        );
+        localStorage.setItem("voiceAppLangIdx", currentLangIdx);
+        updateDatalist();
+      }
+
+      // Initialize UI
+      langStatus.textContent = languages[currentLangIdx].name;
+      updateDatalist();
+
+      // 3. Dynamic Popover Logic (Add vs Rename/Delete)
+      function resetPopoverInputs() {
+        codeInput.value = "";
+        nameInput.value = "";
+        actionsNew.style.display = "flex";
+        actionsExisting.style.display = "none";
+        popover.hidePopover();
+      }
+
+      codeInput.addEventListener("input", (e) => {
+        const code = e.target.value.trim();
+        const existing = languages.find((l) =>
+          l.code.toLowerCase() === code.toLowerCase()
+        );
+
+        if (existing) {
+          nameInput.value = existing.name; // Auto-fill
+          actionsNew.style.display = "none";
+          actionsExisting.style.display = "flex";
+        } else {
+          actionsNew.style.display = "flex";
+          actionsExisting.style.display = "none";
+        }
+      });
+
+      document.getElementById("add-lang-btn").addEventListener(
+        "click",
+        () => {
+          const code = codeInput.value.trim();
+          const name = nameInput.value.trim();
+          if (!code || !name) return;
+
+          languages.push({ code, name });
+          saveLanguagesToStorage();
+          showToast(`${name} added`);
+          resetPopoverInputs();
+        },
+      );
+
+      document.getElementById("rename-lang-btn").addEventListener(
+        "click",
+        () => {
+          const code = codeInput.value.trim();
+          const newName = nameInput.value.trim();
+          if (!code || !newName) return;
+
+          const idx = languages.findIndex((l) =>
+            l.code.toLowerCase() === code.toLowerCase()
+          );
+          if (idx !== -1) {
+            languages[idx].name = newName;
+            if (idx === currentLangIdx) {
+              langStatus.textContent = newName; // Update UI if it's the active one
+            }
+            saveLanguagesToStorage();
+            showToast("Language renamed");
+            resetPopoverInputs();
+          }
+        },
+      );
+
+      document.getElementById("delete-lang-btn").addEventListener(
+        "click",
+        () => {
+          if (languages.length <= 1) {
+            showToast("Cannot delete last language");
+            return;
+          }
+
+          const code = codeInput.value.trim();
+          const idx = languages.findIndex((l) =>
+            l.code.toLowerCase() === code.toLowerCase()
+          );
+
+          if (idx !== -1) {
+            languages.splice(idx, 1);
+
+            // Fix index if we deleted the current or a preceding language
+            if (currentLangIdx === idx) {
+              currentLangIdx = 0; // Reset to first available if active is deleted
+              recognition.lang = languages[currentLangIdx].code;
+              langStatus.textContent = languages[currentLangIdx].name;
+              if (isRecording) recognition.stop();
+            } else if (currentLangIdx > idx) {
+              currentLangIdx--;
+            }
+
+            saveLanguagesToStorage();
+            showToast("Language deleted");
+            resetPopoverInputs();
+          }
+        },
+      );
+
+      // 4. Speech Logic
+      recognition.onresult = (event) => {
+        let interimTranscript = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            let text = event.results[i][0].transcript.trim();
+
+            // Add a period if they didn't manually speak a punctuation mark
+            if (!text.match(/[.,!?]$/)) {
+              text += ".";
+            }
+
+            // Append to final transcript with a trailing space
+            finalTranscript += text + " ";
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        textDisplay.innerHTML = finalTranscript +
+          '<span class="interim">' + interimTranscript + "</span>";
+        textDisplay.scrollTop = textDisplay.scrollHeight;
+      };
+
+      recognition.onend = () => {
+        if (isRecording) recognition.start();
+        else updateMicUI(false);
+      };
+
+      recognition.onerror = (e) => {
+        if (e.error === "not-allowed") setRecordingState(false);
+      };
+
+      // 5. Core Actions
+      function setRecordingState(state) {
+        if (isRecording === state) return;
+        isRecording = state;
+        if (isRecording) {
+          recognition.start();
+          updateMicUI(true);
+        } else {
+          recognition.stop();
+          updateMicUI(false);
+        }
+      }
+
+      function switchLanguage() {
+        currentLangIdx = (currentLangIdx + 1) % languages.length;
+        recognition.lang = languages[currentLangIdx].code;
+        langStatus.textContent = languages[currentLangIdx].name;
+        saveLanguagesToStorage();
+        showToast(`Language: ${languages[currentLangIdx].name}`);
+        if (isRecording) recognition.stop();
+      }
+
+      function updateMicUI(active) {
+        if (active) {
+          micStatus.textContent = "Listening...";
+          micStatus.classList.add("active");
+        } else {
+          micStatus.textContent = "Idle";
+          micStatus.classList.remove("active");
+        }
+      }
+
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.style.opacity = 1;
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => toast.style.opacity = 0, 2000);
+      }
+
+      // 6. Keyboard Bindings
+      document.addEventListener("keydown", (e) => {
+        if (e.target.tagName === "INPUT") return;
+        if (e.repeat) return;
+
+        switch (e.key.toLowerCase()) {
+          case "shift":
+            switchLanguage();
+            break;
+          case "tab":
+            e.preventDefault();
+            if (!popover.matches(":popover-open")) {
+              popover.showPopover();
+              codeInput.focus();
+              // Trigger input event to check if fields happen to be pre-filled
+              codeInput.dispatchEvent(new Event("input"));
+            } else {
+              resetPopoverInputs();
+            }
+            break;
+          case "a":
+            setRecordingState(!isRecording);
+            break;
+          case "c":
+            if (finalTranscript) {
+              navigator.clipboard.writeText(finalTranscript);
+              showToast("Copied");
+            }
+            break;
+          case "d":
+            if (finalTranscript) {
+              undoBuffer = finalTranscript;
+              finalTranscript = "";
+              textDisplay.innerHTML = "";
+              showToast("Cleared");
+            }
+            break;
+          case "x":
+            if (finalTranscript) {
+              navigator.clipboard.writeText(finalTranscript);
+              undoBuffer = finalTranscript;
+              finalTranscript = "";
+              textDisplay.innerHTML = "";
+              showToast("Copied & Cleared");
+            }
+            break;
+          case "z":
+            if (undoBuffer) {
+              finalTranscript = undoBuffer;
+              undoBuffer = "";
+              textDisplay.innerHTML = finalTranscript;
+              showToast("Undo");
+            }
+            break;
+          case " ": // Spacebar
+            e.preventDefault();
+            if (!isRecording) {
+              isSpaceListening = true;
+              setRecordingState(true);
+            }
+            break;
+        }
+      });
+
+      document.addEventListener("keyup", (e) => {
+        if (e.target.tagName === "INPUT") return;
+        if (e.key === " " && isSpaceListening) {
+          e.preventDefault();
+          isSpaceListening = false;
+          setRecordingState(false);
+        }
+      });
+    </script>
+  </body>
+</html>
